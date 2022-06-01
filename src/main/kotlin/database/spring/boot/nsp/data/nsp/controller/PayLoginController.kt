@@ -1,23 +1,19 @@
 package database.spring.boot.nsp.data.nsp.controller
 
 import database.spring.boot.nsp.data.nsp.entity.ApiResponse
+import database.spring.boot.nsp.data.nsp.entity.Payment
 import database.spring.boot.nsp.data.nsp.entity.Subscriber
 import database.spring.boot.nsp.data.nsp.repository.SubscriberRepository
-import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.stereotype.Component
-import org.springframework.util.ObjectUtils
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.util.UriComponentsBuilder
-import javax.annotation.PostConstruct
-
+import java.util.ArrayList
+import kotlin.math.roundToInt
 
 
 @RestController
 @RequestMapping("/api")
 class PayLogicController(private val subscriberRepository : SubscriberRepository ) {
-
     @GetMapping("/subscriber")
     fun subscribers() : ResponseEntity<List<Subscriber>> {
         val subscribers = subscriberRepository.findAll()
@@ -37,11 +33,8 @@ class PayLogicController(private val subscriberRepository : SubscriberRepository
     }
 
     @PostMapping("/subscribers")
-    fun addNewSubscriber(@RequestBody subscriber: Subscriber): ResponseEntity<Subscriber> {
-        val persistedSubscriber = subscriberRepository.save(subscriber)
-        return if (ObjectUtils.isEmpty(persistedSubscriber)) {
-            ResponseEntity<Subscriber>(HttpStatus.BAD_REQUEST)
-        } else ResponseEntity(HttpStatus.CREATED)
+    fun addNewSubscriber(@RequestBody subscriber: Subscriber): ApiResponse {
+        return ApiResponse(200, "Ok", subscriberRepository.save(subscriber))
     }
     @PutMapping("/subscriber/{code}")
     fun updateSubscriberByCode(@PathVariable("code") subscriberCode: String, @RequestBody subscriber: Subscriber): ResponseEntity<Subscriber> {
@@ -56,5 +49,34 @@ class PayLogicController(private val subscriberRepository : SubscriberRepository
             ResponseEntity(subscriberRepository.save(updatedGadget), HttpStatus.OK)
         }.orElse(ResponseEntity<Subscriber>(HttpStatus.INTERNAL_SERVER_ERROR))
     }
+    @GetMapping("/debt/{code}")
+    fun debt(@PathVariable code: String): ApiResponse {
+        //subscribers.takeWhile { it.code == code }
+        val subscriber = subscriberRepository.findById(code)
 
+        val response = ApiResponse(
+            if (subscriber == null) 404 else 200, if (subscriber == null) "NOT FOUND" else "Success", subscriber
+        )
+
+        return response
+    }
+    @PostMapping("/pay")
+    fun pay(@RequestBody payment: Payment): ApiResponse {
+        val subscriber = subscriberRepository.findById(payment.code)
+        if (subscriber == null) {
+            val response = ApiResponse(
+                404, "NOT FOUND", subscriber
+            )
+            return response
+        }
+
+        subscriber.get().debt -= payment.amount
+        subscriber.get().debt = (subscriber.get().debt * 100).roundToInt() / 100.00
+
+        val response = ApiResponse(
+            200, "Success", subscriber
+        )
+
+        return response
+    }
 }
